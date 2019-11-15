@@ -1,0 +1,6 @@
+2019/11/15 17:30:20 livego.go:68: HttpServer listen on :8888
+2019/11/15 17:30:20 livego.go:1722: rtmp server listen on :1935
+2019/11/15 17:30:23 livego.go:1753: new rtmp conn: 127.0.0.1_49388.log
+2019/11/15 17:30:23 livego.go:1409: new publisher live_yuankang_publisher_127.0.0.1_49388.log
+2019/11/15 17:30:26 livego.go:1753: new rtmp conn: 127.0.0.1_49395.log
+2019/11/15 17:30:26 livego.go:1424: new player live_yuankang_player_127.0.0.1_49395.log
