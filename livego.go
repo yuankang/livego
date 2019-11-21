@@ -12,7 +12,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"reflect"
 	"strings"
@@ -281,30 +280,19 @@ func (rc *RtmpConn) ChunkMerge(c *Chunk) error {
 
 	buf := c.Data[c.index : c.index+uint32(size)]
 	//n, err := rc.rw.Read(buf)
-	n, err := io.ReadAtLeast(rc.rw, buf, len(buf))
+	_, err := io.ReadAtLeast(rc.rw, buf, len(buf))
 	if err != nil {
 		return err
 	}
-	rc.log.Printf("total len: %d,  data len: %d, size: %d", c.Length, n, size)
+	//rc.log.Printf("total len: %d,  data len: %d", c.Length, n)
 	c.index += uint32(size)
 	c.remain -= uint32(size)
 	if c.remain == 0 {
 		c.Done = true
 	}
 
-	rc.log.Printf("Format: %d, CSID: %d, Timestamp: %d, Length: %d, TypeID: %d, StreamID: %d, timeDelta: %d, exted: %t, index: %d, remain: %d, Done: %t, tmpFromat: %d",
-		c.Fmt,
-		c.CSID,
-		c.Timestamp,
-		c.Length,
-		c.TypeID,
-		c.StreamID,
-		c.TimeDelta,
-		c.exted,
-		c.index,
-		c.remain,
-		c.Done,
-		c.tmpFmt)
+	rc.log.Printf("Fmt: %d, CSID: %d, Timestamp: %d, Length: %d, TypeID: %d, StreamID: %d, TimeDelta: %d, exted: %t, index: %d, remain: %d, Done: %t, tmpFmt: %d",
+		c.Fmt, c.CSID, c.Timestamp, c.Length, c.TypeID, c.StreamID, c.TimeDelta, c.exted, c.index, c.remain, c.Done, c.tmpFmt)
 	return nil
 }
 
@@ -354,10 +342,10 @@ func (rc *RtmpConn) ChunkMessageHandle(c *Chunk) {
 	switch c.TypeID {
 	case MsgIdSetChunkSize:
 		rc.RemoteChunkSize = binary.BigEndian.Uint32(c.Data)
-		rc.log.Println(rc.RemoteChunkSize)
+		rc.log.Println("set RemoteChunkSize =", rc.RemoteChunkSize)
 	case MsgIdWindowAckSize:
 		rc.RemoteWindowAckSize = binary.BigEndian.Uint32(c.Data)
-		rc.log.Println(rc.RemoteWindowAckSize)
+		rc.log.Println("set RemoteWindowAckSize =", rc.RemoteWindowAckSize)
 	case 17, 18, 20:
 		rc.ChunkCmdMessageHandle(c)
 	default:
@@ -591,7 +579,7 @@ func (rc *RtmpConn) ChunkCmdMessageHandle(c *Chunk) error {
 		rc.log.Println(err)
 		return err
 	}
-	rc.log.Println(len(items))
+	//rc.log.Println(len(items))
 
 	v, ok := items[0].(string)
 	if !ok {
@@ -631,7 +619,7 @@ func (rc *RtmpConn) ChunkCmdMessageHandle(c *Chunk) error {
 		}
 		rc.Done = true
 		rc.isPublisher = true
-		rc.log.Println("handle publish request done")
+		//rc.log.Println("handle publish request done")
 	case cmdFCUnpublish:
 	case cmdDeleteStream:
 	case cmdPlay:
@@ -645,7 +633,7 @@ func (rc *RtmpConn) ChunkCmdMessageHandle(c *Chunk) error {
 		}
 		rc.Done = true
 		rc.isPublisher = false
-		rc.log.Println("handle play request done")
+		//rc.log.Println("handle play request done")
 	default:
 		rc.log.Printf("undefined cmd message\n%#v\n", items)
 	}
@@ -654,7 +642,7 @@ func (rc *RtmpConn) ChunkCmdMessageHandle(c *Chunk) error {
 
 func (rc *RtmpConn) RtmpCmdPlay(items []interface{}) error {
 	for k, item := range items {
-		rc.log.Println(k, item)
+		//rc.log.Println(k, item)
 		switch item.(type) {
 		case string:
 			if k == 2 {
@@ -720,10 +708,10 @@ func (rc *RtmpConn) EventSend(c *Chunk, msg []byte) error {
 
 func (rc *RtmpConn) RtmpCmdPlayResp(c *Chunk) error {
 	cc := NewChunkUCM(streamIsRecorded, 4)
-	rc.log.Println(cc)
+	//rc.log.Println(cc)
 	rc.ChunkSplitSend(&cc)
 	cc = NewChunkUCM(streamBegin, 4)
-	rc.log.Println(cc)
+	//rc.log.Println(cc)
 	rc.ChunkSplitSend(&cc)
 
 	event := make(map[string]interface{})
@@ -821,7 +809,7 @@ func (rc *RtmpConn) ChunkSendHeader(c *Chunk) error {
 		rc.WriteUintBE(h, 1)
 		rc.WriteUintLE(c.CSID-64, 2)
 	}
-	rc.log.Println("chunk fmt, csid, 111 --->", c.Fmt, c.CSID, h)
+	//rc.log.Println("chunk fmt, csid, 111 --->", c.Fmt, c.CSID, h)
 
 	if c.Fmt == 3 {
 		goto End
@@ -865,13 +853,17 @@ func (rc *RtmpConn) ChunkSplitSend(c *Chunk) error {
 	}
 
 	n := c.Length / rc.ChunkSize
-	rc.log.Println(c.Length, rc.ChunkSize, n)
+	rc.log.Printf("send chunk, Lenght:%d, ChunkSize:%d, ChunkNum:%d",
+		c.Length, rc.ChunkSize, n+1)
 	for i := uint32(0); i <= n; i++ {
 		if i == 0 {
 			c.Fmt = uint32(0)
 		} else {
 			c.Fmt = uint32(3)
 		}
+		rc.log.Printf("send chunk ---> %d, Fmt: %d, CSID: %d, Timestamp: %d, Length: %d, TypeID: %d, StreamID: %d, index: %d, remain: %d, tmpFmt: %d",
+			i, c.Fmt, c.CSID, c.Timestamp, c.Length, c.TypeID, c.StreamID, c.index, c.remain, c.tmpFmt)
+
 		rc.ChunkSendHeader(c)
 		// chunk send data
 		s := i * rc.ChunkSize
@@ -879,7 +871,7 @@ func (rc *RtmpConn) ChunkSplitSend(c *Chunk) error {
 		if uint32(len(c.Data))-s <= rc.ChunkSize {
 			e = s + uint32(len(c.Data)) - s
 		}
-		rc.log.Println(s, e)
+		//rc.log.Println(s, e)
 		buf := c.Data[s:e]
 		if _, err := rc.rw.Write(buf); err != nil {
 			rc.log.Println(err)
@@ -1103,14 +1095,14 @@ func AmfEncodeWriteMarker(w io.Writer, m byte) (int, error) {
 
 func (rc *RtmpConn) RtmpCmdConnectResp(c *Chunk) error {
 	cc := NewChunk(MsgIdWindowAckSize, 4, 2500000)
-	rc.log.Println(cc)
+	//rc.log.Println(cc)
 	rc.ChunkSplitSend(&cc)
 	cc = NewChunk(MsgIdSetPeerBandwidth, 5, 2500000)
 	cc.Data[4] = 2 // ???
-	rc.log.Println(cc)
+	//rc.log.Println(cc)
 	rc.ChunkSplitSend(&cc)
 	cc = NewChunk(MsgIdSetChunkSize, 4, 1024)
-	rc.log.Println(cc)
+	//rc.log.Println(cc)
 	rc.ChunkSplitSend(&cc)
 
 	resp := make(map[string]interface{})
@@ -1166,12 +1158,11 @@ func (rc *RtmpConn) RtmpCmdConnect(items []interface{}) error {
 			}
 		}
 	}
-	rc.log.Println(rc.transactionID, rc.ConnInfo)
+	rc.log.Printf("tranID:%d, %#v", rc.transactionID, rc.ConnInfo)
 	return nil
 }
 
 func (rc *RtmpConn) RtmpCmdCreateStreamResp(c *Chunk) error {
-	rc.log.Println(rc.streamID)
 	msg, err := AmfMarshal("_result", rc.transactionID, nil, rc.streamID)
 	if err != nil {
 		rc.log.Println(err)
@@ -1229,7 +1220,7 @@ func (rc *RtmpConn) RtmpCmdPublishResp(c *Chunk) error {
 
 func (rc *RtmpConn) RtmpCmdPublish(items []interface{}) error {
 	for k, item := range items {
-		rc.log.Println(k, item)
+		//rc.log.Println(k, item)
 		switch item.(type) {
 		case string:
 			if k == 2 {
@@ -1247,6 +1238,7 @@ func (rc *RtmpConn) RtmpCmdPublish(items []interface{}) error {
 
 // 1 接收&拼接chunk数据; 2 处理chunk数据;
 func (rc *RtmpConn) ChunkHandle(cp *Chunk) error {
+	i := 0
 	for {
 		bh, err := rc.ReadUintBE(1)
 		if err != nil {
@@ -1256,7 +1248,8 @@ func (rc *RtmpConn) ChunkHandle(cp *Chunk) error {
 
 		fmt := bh >> 6
 		csid := bh & 0x3f
-		rc.log.Println("chunk 333333 --->", fmt, csid)
+		rc.log.Printf("chunk ---> %d, fmt:%d, csid:%d", i, fmt, csid)
+		i++
 
 		c, ok := rc.Chunks[csid]
 		if !ok {
@@ -1284,8 +1277,8 @@ func (rc *RtmpConn) ChunkHandle(cp *Chunk) error {
 	if rc.Received >= 0xf0000000 {
 		rc.Received = 0
 	}
-	rc.log.Println(rc.AckReceived, rc.RemoteWindowAckSize)
 	if rc.AckReceived >= rc.RemoteWindowAckSize { // ???
+		rc.log.Println("send RemoteWindowAckSize,", rc.AckReceived, rc.RemoteWindowAckSize)
 		// 1 创建chunk数据;
 		c := Chunk{Fmt: 0, CSID: 2, TypeID: MsgIdAck, StreamID: 0, Length: 4, Data: make([]byte, 4)}
 		is.PutU32BE(c.Data[:4], rc.AckReceived)
@@ -1318,7 +1311,7 @@ func (rc *RtmpConn) HandlerNegotiation() error {
 	i := 0
 	//for i := 0; i < 6; i++
 	for {
-		rc.log.Println("negotiation 999999 ----->", i)
+		rc.log.Println("negotiation ----->", i)
 		i++
 		if err := rc.ChunkHandle(&c); err != nil {
 			rc.log.Println(err)
@@ -1342,7 +1335,6 @@ type RtmpConn struct {
 	Key     string
 	URL     string
 	UID     string
-	Inter   bool
 	start   bool
 
 	net.Conn
@@ -1383,22 +1375,21 @@ func RtmpHandler(rc *RtmpConn) {
 	}
 	rc.log.Println("RtmpHandlerNegotiation ok")
 
-	rc.log.Println(rc.ConnInfo.App,
-		rc.PublishInfo.Name,
+	/*
+		rc.URL = rc.ConnInfo.TcUrl + "/" + rc.PublishInfo.Name
+		Url, err := url.Parse(rc.URL)
+		if err != nil {
+			rc.log.Println(err)
+			return
+		}
+		rc.log.Printf("%#v\n", Url)
+		rc.Key = strings.TrimLeft(Url.Path, "/")
+		rc.log.Println(rc.URL, rc.Key, rc.isPublisher)
+	*/
+	rc.Key = fmt.Sprintf("%s/%s", rc.ConnInfo.App, rc.PublishInfo.Name)
+	rc.log.Printf("app:%s stream:%s key:%s isPublisher:%v url:%s",
+		rc.ConnInfo.App, rc.PublishInfo.Name, rc.Key, rc.isPublisher,
 		rc.ConnInfo.TcUrl+"/"+rc.PublishInfo.Name)
-
-	rc.UID = "uidxxx"
-	rc.URL = rc.ConnInfo.TcUrl + "/" + rc.PublishInfo.Name
-	Url, err := url.Parse(rc.URL)
-	if err != nil {
-		rc.log.Println(err)
-		return
-	}
-	rc.log.Printf("%#v\n", Url)
-	rc.Key = strings.TrimLeft(Url.Path, "/")
-	rc.Inter = false
-	rc.log.Println(rc.UID, rc.URL, rc.Key, rc.Inter,
-		rc.isPublisher)
 
 	if rc.isPublisher {
 		f1 := strings.ReplaceAll(rc.Key, "/", "_")
@@ -1481,7 +1472,7 @@ func (s *Stream) Start() {
 	//for i := 0; i < 6; i++ {
 	i := 0
 	for {
-		rc.log.Println("packet 666666 ----->", i)
+		rc.log.Printf("recv packet ---> %d", i)
 		i++
 
 		err := s.Recv(&p)
@@ -1553,9 +1544,8 @@ func (s *Stream) Send(rc *RtmpConn, p *Packet) error {
 		c.TypeID = TagAudio
 	}
 
-	c.Data = nil
-	rc.log.Printf("%#v", c)
-	c.Data = p.Data
+	rc.log.Printf("Fmt: %d, CSID: %d, Timestamp: %d, Length: %d, TypeID: %d, StreamID: %d, TimeDelta: %d, exted: %t, index: %d, remain: %d, Done: %t, tmpFmt: %d",
+		c.Fmt, c.CSID, c.Timestamp, c.Length, c.TypeID, c.StreamID, c.TimeDelta, c.exted, c.index, c.remain, c.Done, c.tmpFmt)
 
 	if err := rc.ChunkSplitSend(&c); err != nil {
 		rc.log.Println(err)
