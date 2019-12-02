@@ -15,8 +15,6 @@ import (
 	"os"
 	"reflect"
 	"strings"
-
-	"github.com/yuankang/livego/utils/is"
 )
 
 var (
@@ -94,8 +92,8 @@ func (rc *RtmpConn) HandshakeServer() error {
 		return fmt.Errorf("rtmp handshake version=%d invalid", C0[0])
 	}
 
-	cTime := is.U32BE(C1[0:4])
-	cZero := is.U32BE(C1[4:8])
+	cTime := U32BE(C1[0:4])
+	cZero := U32BE(C1[4:8])
 	sTime := cTime
 	sZero := uint32(0x0d0e0a0d)
 
@@ -180,8 +178,8 @@ func HsParseC1(C1 []byte) ([]byte, bool) {
 	return S2key, true
 }
 func HsCreateS1(S1 []byte, sTime, sZero uint32) {
-	is.PutU32BE(S1[0:4], sTime)
-	is.PutU32BE(S1[4:8], sZero)
+	PutU32BE(S1[0:4], sTime)
+	PutU32BE(S1[4:8], sZero)
 	rand.Read(S1[8:])
 	pos := HsFindDigestPos(S1, 8)
 	digest := HsCalcDigest(HsServerKeyPart, S1, pos)
@@ -766,7 +764,7 @@ func NewChunk(TypeID, Len, Data uint32) Chunk {
 		Length:   Len,
 		Data:     make([]byte, Len),
 	}
-	is.PutU32BE(c.Data[:Len], Data)
+	PutU32BE(c.Data[:Len], Data)
 	return c
 }
 
@@ -1283,7 +1281,7 @@ func (rc *RtmpConn) ChunkHandle(cp *Chunk) error {
 		rc.log.Println("send RemoteWindowAckSize,", rc.AckReceived, rc.RemoteWindowAckSize)
 		// 1 创建chunk数据;
 		c := Chunk{Fmt: 0, CSID: 2, TypeID: MsgIdAck, StreamID: 0, Length: 4, Data: make([]byte, 4)}
-		is.PutU32BE(c.Data[:4], rc.AckReceived)
+		PutU32BE(c.Data[:4], rc.AckReceived)
 		// 2 拆分chunk; 3 序列化chunk; 2 发送chunk;
 		rc.ChunkSplitSend(&c)
 		rc.AckReceived = 0
@@ -1753,4 +1751,236 @@ func main() {
 
 	go HttpServer()
 	RtmpServer()
+}
+
+
+
+
+
+/////////////////////////////////////////////////////
+// is 是 integer serialization
+// 网络收发时，需要把int/uint等 以大端or小端字节序 转为[]byte, Big endian / Little endian
+// []byte 以大端转为 int, 高位 b[0] 1 2 3 低位
+// []byte 以小端转为 int, 高位 3 2 1 0 低位
+/////////////////////////////////////////////////////
+/*
+func main() {
+	var n uint32 = 99
+	b := make([]byte, 4)
+	log.Printf("%T %v", n, n)
+	log.Println(b)
+
+	PutU32BE(b[0:4], n)
+	log.Println(b)
+
+	m := U32BE(b)
+	log.Printf("%T %v", m, m)
+}
+*/
+
+func U8(b []byte) uint8 {
+	i := b[0]
+	return i
+}
+
+func U16BE(b []byte) uint16 {
+	i := uint16(b[0])
+	i <<= 8
+	i |= uint16(b[1])
+	return i
+}
+
+func I16BE(b []byte) int16 {
+	i := int16(b[0])
+	i <<= 8
+	i |= int16(b[1])
+	return i
+}
+
+func I24BE(b []byte) int32 {
+	i := int32(int8(b[0]))
+	i <<= 8
+	i |= int32(b[1])
+	i <<= 8
+	i |= int32(b[2])
+	return i
+}
+
+func U24BE(b []byte) uint32 {
+	i := uint32(b[0])
+	i <<= 8
+	i |= uint32(b[1])
+	i <<= 8
+	i |= uint32(b[2])
+	return i
+}
+
+func I32BE(b []byte) int32 {
+	i := int32(int8(b[0]))
+	i <<= 8
+	i |= int32(b[1])
+	i <<= 8
+	i |= int32(b[2])
+	i <<= 8
+	i |= int32(b[3])
+	return i
+}
+
+func U32LE(b []byte) uint32 {
+	i := uint32(b[3])
+	i <<= 8
+	i |= uint32(b[2])
+	i <<= 8
+	i |= uint32(b[1])
+	i <<= 8
+	i |= uint32(b[0])
+	return i
+}
+
+func U32BE(b []byte) uint32 {
+	i := uint32(b[0])
+	i <<= 8
+	i |= uint32(b[1])
+	i <<= 8
+	i |= uint32(b[2])
+	i <<= 8
+	i |= uint32(b[3])
+	return i
+}
+
+func U40BE(b []byte) uint64 {
+	i := uint64(b[0])
+	i <<= 8
+	i |= uint64(b[1])
+	i <<= 8
+	i |= uint64(b[2])
+	i <<= 8
+	i |= uint64(b[3])
+	i <<= 8
+	i |= uint64(b[4])
+	return i
+}
+
+func U64BE(b []byte) uint64 {
+	i := uint64(b[0])
+	i <<= 8
+	i |= uint64(b[1])
+	i <<= 8
+	i |= uint64(b[2])
+	i <<= 8
+	i |= uint64(b[3])
+	i <<= 8
+	i |= uint64(b[4])
+	i <<= 8
+	i |= uint64(b[5])
+	i <<= 8
+	i |= uint64(b[6])
+	i <<= 8
+	i |= uint64(b[7])
+	return i
+}
+
+func I64BE(b []byte) int64 {
+	i := int64(int8(b[0]))
+	i <<= 8
+	i |= int64(b[1])
+	i <<= 8
+	i |= int64(b[2])
+	i <<= 8
+	i |= int64(b[3])
+	i <<= 8
+	i |= int64(b[4])
+	i <<= 8
+	i |= int64(b[5])
+	i <<= 8
+	i |= int64(b[6])
+	i <<= 8
+	i |= int64(b[7])
+	return i
+}
+
+func PutU8(b []byte, v uint8) {
+	b[0] = v
+}
+
+func PutI16BE(b []byte, v int16) {
+	b[0] = byte(v >> 8)
+	b[1] = byte(v)
+}
+
+func PutU16BE(b []byte, v uint16) {
+	b[0] = byte(v >> 8)
+	b[1] = byte(v)
+}
+
+func PutI24BE(b []byte, v int32) {
+	b[0] = byte(v >> 16)
+	b[1] = byte(v >> 8)
+	b[2] = byte(v)
+}
+
+func PutU24BE(b []byte, v uint32) {
+	b[0] = byte(v >> 16)
+	b[1] = byte(v >> 8)
+	b[2] = byte(v)
+}
+
+func PutI32BE(b []byte, v int32) {
+	b[0] = byte(v >> 24)
+	b[1] = byte(v >> 16)
+	b[2] = byte(v >> 8)
+	b[3] = byte(v)
+}
+
+func PutU32BE(b []byte, v uint32) {
+	b[0] = byte(v >> 24)
+	b[1] = byte(v >> 16)
+	b[2] = byte(v >> 8)
+	b[3] = byte(v)
+}
+
+func PutU32LE(b []byte, v uint32) {
+	b[3] = byte(v >> 24)
+	b[2] = byte(v >> 16)
+	b[1] = byte(v >> 8)
+	b[0] = byte(v)
+}
+
+func PutU40BE(b []byte, v uint64) {
+	b[0] = byte(v >> 32)
+	b[1] = byte(v >> 24)
+	b[2] = byte(v >> 16)
+	b[3] = byte(v >> 8)
+	b[4] = byte(v)
+}
+
+func PutU48BE(b []byte, v uint64) {
+	b[0] = byte(v >> 40)
+	b[1] = byte(v >> 32)
+	b[2] = byte(v >> 24)
+	b[3] = byte(v >> 16)
+	b[4] = byte(v >> 8)
+	b[5] = byte(v)
+}
+
+func PutU64BE(b []byte, v uint64) {
+	b[0] = byte(v >> 56)
+	b[1] = byte(v >> 48)
+	b[2] = byte(v >> 40)
+	b[3] = byte(v >> 32)
+	b[4] = byte(v >> 24)
+	b[5] = byte(v >> 16)
+	b[6] = byte(v >> 8)
+	b[7] = byte(v)
+}
+
+func PutI64BE(b []byte, v int64) {
+	b[0] = byte(v >> 56)
+	b[1] = byte(v >> 48)
+	b[2] = byte(v >> 40)
+	b[3] = byte(v >> 32)
+	b[4] = byte(v >> 24)
+	b[5] = byte(v >> 16)
+	b[6] = byte(v >> 8)
+	b[7] = byte(v)
 }
