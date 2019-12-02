@@ -861,16 +861,15 @@ func (rc *RtmpConn) ChunkSplitSend(c *Chunk) error {
 		} else {
 			c.Fmt = uint32(3)
 		}
-		rc.log.Printf("send chunk ---> %d, Fmt: %d, CSID: %d, Timestamp: %d, Length: %d, TypeID: %d, StreamID: %d, index: %d, remain: %d, tmpFmt: %d",
-			i, c.Fmt, c.CSID, c.Timestamp, c.Length, c.TypeID, c.StreamID, c.index, c.remain, c.tmpFmt)
 
 		rc.ChunkSendHeader(c)
 		// chunk send data
 		s := i * rc.ChunkSize
 		e := s + rc.ChunkSize
 		if uint32(len(c.Data))-s <= rc.ChunkSize {
-			e = s + uint32(len(c.Data)) - s
+			e = uint32(len(c.Data))
 		}
+		c.remain = uint32(len(c.Data)) - e
 		//rc.log.Println(s, e)
 		buf := c.Data[s:e]
 		if _, err := rc.rw.Write(buf); err != nil {
@@ -878,6 +877,9 @@ func (rc *RtmpConn) ChunkSplitSend(c *Chunk) error {
 			return err
 		}
 		rc.rw.Flush()
+
+		rc.log.Printf("send chunk ---> %d, Fmt: %d, CSID: %d, Timestamp: %d, Length: %d, TypeID: %d, StreamID: %d, TimeDelta: %d, index: %d, remain: %d, tmpFmt: %d",
+			i, c.Fmt, c.CSID, c.Timestamp, c.Length, c.TypeID, c.StreamID, c.TimeDelta, c.index, c.remain, c.tmpFmt)
 	}
 	return nil
 }
